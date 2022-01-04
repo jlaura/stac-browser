@@ -26,6 +26,6 @@ deploy:
   dependencies: 
     - build
   script:
-    - aws s3 sync dist s3://asc-stacbrowser/browser-dev/
+    - aws s3 sync --delete dist s3://asc-stacbrowser/browser-dev/
 
 
