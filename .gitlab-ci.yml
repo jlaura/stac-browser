@@ -13,7 +13,7 @@ build:
     - v3
   script:
     - npm install
-    - npm run build -- --PATH_PREFIX="/browser/" --catalogURL="https://asc-stacbrowser.s3.us-west-2.amazonaws.com/catalog.json"
+    - npm run build -- --PATH_PREFIX="/browser-dev/" --catalogURL="https://asc-stacbrowser.s3.us-west-2.amazonaws.com/catalog.json"
   artifacts:
     paths:
       - dist
