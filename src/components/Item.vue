@@ -113,6 +113,21 @@ const COG_TYPES = [
 
 const FEATURES_TYPES = ["application/geo+json"];
 
+const BASE_MAPS = {
+         europa: {
+           baseUrl: "https://planetarymaps.usgs.gov/cgi-bin/mapserv?map=/maps/jupiter/europa_simp_cyl.map",
+           name: "GALILEO_VOYAGER"
+         },
+         mars: {
+           baseUrl: "https://planetarymaps.usgs.gov/cgi-bin/mapserv?map=/maps/mars/mars_simp_cyl.map",
+           name: "MDIM21"
+         },
+         moon: {
+           baseUrl: "https://planetarymaps.usgs.gov/cgi-bin/mapserv?map=/maps/earth/moon_simp_cyl.map",
+           name: "LROC_WAC"
+         }
+       };
+
 export default {
   ...common,
   name: "ItemDetail",
@@ -161,9 +176,9 @@ export default {
       geojsonOptions: {
         style: function() {
           return {
-            weight: 2,
-            color: "#333",
-            opacity: 1,
+            weight: 1,
+            color: "#ffd65d",
+            opacity: 0.5,
             fillOpacity: 0
           };
         }
@@ -548,19 +563,18 @@ export default {
           touchZoom: false
         });
 
-        Leaflet.tileLayer(
-          "https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}@2x.png",
-          {
-            attribution: `Map data <a href="https://www.openstreetmap.org/copyright">&copy; OpenStreetMap contributors</a>, &copy; <a href="https://carto.com/attributions">CARTO</a>`
-          }
-        ).addTo(this.locatorMap);
-        Leaflet.tileLayer(
-          "https://{s}.basemaps.cartocdn.com/dark_only_labels/{z}/{x}/{y}@2x.png",
-          {
-            opacity: 0.6,
-            zIndex: 1000
-          }
-        ).addTo(this.locatorMap);
+      var target = this.item['properties']['ssys:targets'][0].toLowerCase();
+
+      Leaflet.tileLayer.wms(
+        BASE_MAPS[target]['baseUrl'],
+        {
+            layers: BASE_MAPS[target]['name'],
+            crs: Leaflet.CRS.EPSG4326,
+            format: 'image/png',
+            attribution: 'USGS Astrogeology'
+        }
+      ).addTo(this.locatorMap);
+
       } else {
         this.locatorOverlayLayer.removeFrom(this.locatorMap);
       }
@@ -568,15 +582,15 @@ export default {
       this.locatorOverlayLayer = Leaflet.geoJSON(this.item, {
         pane: "tilePane",
         style: {
-          weight: 1,
+          weight: 2,
           color: "#ffd65d",
           opacity: 1,
-          fillOpacity: 1
+          fillOpacity: 0
         }
       }).addTo(this.locatorMap);
 
       this.locatorMap.fitBounds(this.locatorOverlayLayer.getBounds(), {
-        padding: [95, 95]
+        padding: [85, 85]
       });
     },
     initializePreviewMap() {
@@ -601,19 +615,18 @@ export default {
         if (this.fullscreen) {
           this.map.getContainer().classList.add("leaflet-pseudo-fullscreen");
         }
+      
+      var target = this.item['properties']['ssys:targets'][0].toLowerCase();
 
-        Leaflet.tileLayer(
-          "https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}@2x.png",
-          {
-            attribution: `Map data <a href="https://www.openstreetmap.org/copyright">&copy; OpenStreetMap contributors</a>, &copy; <a href="https://carto.com/attributions">CARTO</a>`
-          }
-        ).addTo(this.map);
-        Leaflet.tileLayer(
-          "https://{s}.basemaps.cartocdn.com/dark_only_labels/{z}/{x}/{y}@2x.png",
-          {
-            zIndex: 1000
-          }
-        ).addTo(this.map);
+      Leaflet.tileLayer.wms(
+        BASE_MAPS[target]['baseUrl'],
+        {
+            layers: BASE_MAPS[target]['name'],
+            crs: Leaflet.CRS.EPSG4326,
+            format: 'image/png',
+            attribution: 'USGS Astrogeology'
+        }
+      ).addTo(this.map);
       } else {
         if (this.tileLayer != null) {
           this.tileLayer.removeFrom(this.map);

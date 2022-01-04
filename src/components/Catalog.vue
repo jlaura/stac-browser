@@ -178,6 +178,21 @@ import AssetTab from "./AssetTab.vue";
 
 const ITEMS_PER_PAGE = 25;
 
+const BASE_MAPS = {
+         europa: {
+           baseUrl: "https://planetarymaps.usgs.gov/cgi-bin/mapserv?map=/maps/jupiter/europa_simp_cyl.map",
+           name: "GALILEO_VOYAGER"
+         },
+         mars: {
+           baseUrl: "https://planetarymaps.usgs.gov/cgi-bin/mapserv?map=/maps/mars/mars_simp_cyl.map",
+           name: "MDIM21"
+         },
+         moon: {
+           baseUrl: "https://planetarymaps.usgs.gov/cgi-bin/mapserv?map=/maps/earth/moon_simp_cyl.map",
+           name: "LROC_WAC"
+         }
+       };
+
 export default {
   ...common,
   name: "Catalog",
@@ -699,16 +714,15 @@ export default {
         touchZoom: false
       });
 
-      Leaflet.tileLayer(
-        "https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}@2x.png",
+      var target = this.catalog.summaries['ssys:targets'][0].toLowerCase();
+
+      Leaflet.tileLayer.wms(
+        BASE_MAPS[target]['baseUrl'],
         {
-          attribution: `Map data <a href="https://www.openstreetmap.org/copyright">&copy; OpenStreetMap contributors</a>, &copy; <a href="https://carto.com/attributions">CARTO</a>`
-        }
-      ).addTo(this.locatorMap);
-      Leaflet.tileLayer(
-        "https://{s}.basemaps.cartocdn.com/dark_only_labels/{z}/{x}/{y}@2x.png",
-        {
-          zIndex: 1000
+            layers: BASE_MAPS[target]['name'],
+            crs: Leaflet.CRS.EPSG4326,
+            format: 'image/png',
+            attribution: 'USGS Astrogeology'
         }
       ).addTo(this.locatorMap);
 
@@ -720,6 +734,7 @@ export default {
       else {
         spatialExtent = this.spatialExtent;
       }
+      
 
       const coordinates = [spatialExtent.map(extent => {
         const [minX, minY, maxX, maxY] = extent;
