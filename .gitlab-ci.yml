@@ -13,7 +13,7 @@ build:
     - v3
   script:
     - npm install
-    - npm run build -- --pathPrefix="/browser-dev/" --catalogUrl="https://asc-stacbrowser.s3.us-west-2.amazonaws.com/catalog.json"
+    - npm run build -- --pathPrefix="/browser-dev/" --catalogUrl="https://stac.astrogeology.usgs.gov/api"
   artifacts:
     paths:
       - dist
