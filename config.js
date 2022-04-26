@@ -1,5 +1,5 @@
 module.exports = {
-    catalogUrl: "https://6vpdmaqce6.execute-api.us-west-2.amazonaws.com/dev",
+    catalogUrl: "https://6vpdmaqce6.execute-api.us-west-2.amazonaws.com/",
     catalogTitle: "STAC Browser",
     allowExternalAccess: false, // Must be true if catalogUrl is not given
     useTileLayerAsFallback: true,
