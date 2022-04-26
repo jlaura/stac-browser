@@ -13,7 +13,8 @@ build:
     - v3
   script:
     - npm install
-    - npm run build -- --pathPrefix="/browser-dev/" --catalogUrl="https://6vpdmaqce6.execute-api.us-west-2.amazonaws.com/dev"
+#    - npm run build -- --pathPrefix="/browser-dev/" --catalogUrl="https://6vpdmaqce6.execute-api.us-west-2.amazonaws.com/dev"
+    - npm run build
   artifacts:
     paths:
       - dist
