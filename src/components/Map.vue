@@ -1,13 +1,11 @@
 <template>
-  <section class="mb-4">
-    <l-map class="map" v-if="show" :class="stac.type" @ready="init" :options="mapOptions">
-      <LControlFullscreen />
-      <template v-if="baseMaps.length > 0">
-        <component :is="baseMap.component" v-for="baseMap in baseMaps" :key="baseMap.name" v-bind="baseMap" :layers="baseMap.name" layer-type="base" />
-      </template>
-      <LTileLayer v-else url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" :options="osmOptions" />
-    </l-map>
-  </section>
+  <l-map class="map" v-if="show" :class="stac.type" @ready="init" :options="mapOptions">
+    <LControlFullscreen />
+    <template v-if="baseMaps.length > 0">
+      <component v-for="baseMap in baseMaps" :key="baseMap.name" :is="baseMap.component" v-bind="baseMap" :layers="baseMap.name" layer-type="base" />
+    </template>
+    <LTileLayer v-else url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" :options="osmOptions" />
+  </l-map>
 </template>
 
 <script>
@@ -19,6 +17,16 @@ import Utils from '../utils';
 import '@lweller/leaflet-areaselect';
 import { mapState } from 'vuex';
 import STAC from '../stac';
+
+// Fix missing icons: https://vue2-leaflet.netlify.app/quickstart/#marker-icons-are-missing
+import { Icon } from 'leaflet';
+delete Icon.Default.prototype._getIconUrl;
+Icon.Default.mergeOptions({
+  iconRetinaUrl: require('leaflet/dist/images/marker-icon-2x.png'),
+  iconUrl: require('leaflet/dist/images/marker-icon.png'),
+  shadowUrl: require('leaflet/dist/images/marker-shadow.png'),
+});
+
 
 export default {
   name: 'Map',
@@ -70,7 +78,7 @@ export default {
     }
   },
   computed: {
-    ...mapState(['geoTiffResolution', 'tileSourceTemplate', 'buildTileUrlTemplate', 'useTileLayerAsFallback']),
+    ...mapState(['buildTileUrlTemplate', 'crossOriginMedia', 'geoTiffResolution', 'tileSourceTemplate', 'useTileLayerAsFallback']),
     baseMaps() {
       let targets = [];
       if (this.stac.isCollection() && Utils.isObject(this.stac.summaries) && Array.isArray(this.stac.summaries['ssys:targets'])) {
@@ -108,7 +116,7 @@ export default {
               format: "image/png"
             }, baseMaps[target]);
         }
-      });
+      }).filter(map => !!map);
     }
   },
   watch: {
@@ -137,7 +145,8 @@ export default {
           resolution: this.geoTiffResolution,
           useTileLayerAsFallback: this.useTileLayerAsFallback,
           tileUrlTemplate: this.tileSourceTemplate,
-          buildTileUrlTemplate: this.buildTileUrlTemplate
+          buildTileUrlTemplate: this.buildTileUrlTemplate,
+          crossOrigin: this.crossOriginMedia
         };
         if (this.stac instanceof STAC) {
           options.baseUrl = this.stac.getAbsoluteUrl();

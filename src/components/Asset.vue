@@ -1,19 +1,22 @@
 <template>
   <b-card class="asset" no-body>
     <b-card-header header-tag="header" role="tab" class="p-0">
-      <b-button block v-b-toggle="id" variant="asset" squared class="p-2 d-flex">
-        {{ asset.title || id }}
-        <div class="badges ml-1 mr-2" v-if="Array.isArray(asset.roles)">
-          <b-badge v-for="role in asset.roles" :key="role" :variant="role === 'data' ? 'primary' : 'secondary'" class="role ml-1 mb-1">{{ role }}</b-badge>
-          <b-badge v-if="shown" variant="success" class="shown ml-1 mb-1" title="This is the asset currently shown"><b-icon-eye /></b-badge>
-        </div>
-        <span class="ml-auto" aria-hidden="true">
-          <b-icon-chevron-down v-if="expanded" />
-          <b-icon-chevron-up v-else />
+      <b-button block v-b-toggle="uid" variant="asset" squared class="p-2 d-flex">
+        <span class="title">
+          <span class="mr-1" aria-hidden="true">
+            <b-icon-chevron-down v-if="expanded" />
+            <b-icon-chevron-right v-else />
+          </span>
+          {{ asset.title || id }}
         </span>
+        <div class="badges ml-1" v-if="Array.isArray(asset.roles)">
+          <b-badge v-if="shown" variant="success" class="shown ml-1 mb-1" title="This is the asset currently shown"><b-icon-eye /></b-badge>
+          <b-badge v-if="asset.deprecated" variant="warning" class="deprecated ml-1 mb-1">Deprecated</b-badge>
+          <b-badge v-for="role in asset.roles" :key="role" :variant="role === 'data' ? 'primary' : 'secondary'" class="role ml-1 mb-1">{{ role }}</b-badge>
+        </div>
       </b-button>
     </b-card-header>
-    <b-collapse :id="id" v-model="expanded" role="tabpanel">
+    <b-collapse :id="uid" v-model="expanded" accordion="assets" role="tabpanel">
       <b-card-body>
         <b-card-title>{{ fileFormat }}</b-card-title>
         <b-button-group class="actions" v-if="href">
@@ -21,6 +24,8 @@
             {{ buttonText }}
           </CopyButton>
           <b-button v-else :href="href" target="_blank" variant="outline-primary">
+            <b-icon-box-arrow-up-right v-if="browserCanOpen" /> 
+            <b-icon-download v-else />
             {{ buttonText }}
           </b-button>
           <b-button v-if="canShow && shown" :pressed="true" variant="outline-primary" class="inactive">
@@ -40,7 +45,7 @@
 </template>
 
 <script>
-import { BCollapse, BIconCheck, BIconChevronUp, BIconChevronDown, BIconEye } from 'bootstrap-vue';
+import { BCollapse, BIconBoxArrowUpRight, BIconCheck, BIconChevronRight, BIconChevronDown, BIconDownload, BIconEye } from 'bootstrap-vue';
 import { Formatters } from '@radiantearth/stac-fields';
 import { MIME_TYPES } from 'stac-layer/src/data';
 import { mapGetters, mapState } from 'vuex';
@@ -53,9 +58,11 @@ export default {
   name: 'Asset',
   components: {
     BCollapse,
+    BIconBoxArrowUpRight,
     BIconCheck,
     BIconChevronDown,
-    BIconChevronUp,
+    BIconChevronRight,
+    BIconDownload,
     BIconEye,
     CopyButton: () => import('./CopyButton.vue'),
     Description,
@@ -73,6 +80,10 @@ export default {
     context: {
       type: Object,
       default: null
+    },
+    definition: {
+      type: Boolean,
+      default: false
     },
     expand: {
       type: Boolean,
@@ -97,20 +108,15 @@ export default {
       this.expanded = this.expand;
     }
     else {
-      // Expand assets with role data by default
-      this.expanded = Array.isArray(this.asset.roles) && this.asset.roles.includes('data');
-    }
-  },
-  watch: {
-    shown(show, wasShown) {
-      if (show && !wasShown) {
-        this.expanded = true;
-      }
+      this.expanded = false;
     }
   },
   computed: {
     ...mapState(['url']),
-    ...mapGetters(['tileRendererType']),
+    ...mapGetters(['tileRendererType', 'getRequestUrl']),
+    uid() {
+      return (this.definition ? 'item-def-' : 'asset-') + String(this.id);
+    },
     isThumbnail() {
       return Array.isArray(this.asset.roles) && this.asset.roles.includes('thumbnail');
     },
@@ -165,14 +171,11 @@ export default {
       if (typeof this.asset.href !== 'string') {
         return null;
       }
-      let baseUrl;
+      let baseUrl = null;
       if (this.context instanceof STAC) {
         baseUrl = this.context.getAbsoluteUrl();
       }
-      else {
-        baseUrl = this.url;
-      }
-      return Utils.toAbsolute(this.asset.href, baseUrl);
+      return this.getRequestUrl(this.asset.href, baseUrl);
     },
     from() {
       const s3 = 'Amazon S3';
@@ -209,7 +212,25 @@ export default {
       }
       return '';
     },
+    browserCanOpen() {
+      if (Utils.canBrowserDisplayImage(this.asset)) {
+        return true;
+      }
+      else if (typeof this.asset.type === 'string') {
+        switch(this.asset.type.toLowerCase()) {
+          case 'text/html':
+          case 'application/xhtml+xml':
+          case 'text/plain':
+          case 'application/pdf':
+            return true;
+        }
+      }
+      return false;
+    },
     buttonText() {
+      if (this.browserCanOpen) {
+        return 'Open';
+      }
       let text = [this.isGdalVfs ? 'Copy GDAL VFS URL' : 'Download'];
       if (this.from && !this.isBrowsable) {
         text.push(this.isGdalVfs ? 'for' : 'from');
@@ -232,28 +253,23 @@ export default {
 </script>
 
 <style lang="scss">
-.asset {
-  .card-title {
-    font-size: 1.3em;
-  }
+#stac-browser .asset {
   .btn-asset {
     text-align: left;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.5rem 0.8rem;
 
     .badges {
       .badge {
         line-height: 1.2em;
         height: 1.7em;
-      }
-
-      .role {
         text-transform: uppercase;
       }
     }
   }
   .metadata {
-    h4 {
-      font-size: 1.2rem;
-    }
     .card-columns {
       column-count: 1;
     }

@@ -18,10 +18,10 @@ class STAC {
 
         if (migrate) {
             if (data.type === 'FeatureCollection') {
-                data.features = data.features.map(item => Migrate.item(item));
+                data.features = data.features.map(item => Migrate.item(item, false));
             }
             else {
-                data = Migrate.stac(data);
+                data = Migrate.stac(data, false);
             }
         }
         for(let key in data) {
@@ -64,15 +64,28 @@ class STAC {
         if (this._apiChildren.prev) {
             children.push(this._apiChildren.prev);
         }
-        children = children.concat(this.getLinksWithRels(['child', 'item']));
         if (this._apiChildren.list.length > 0) {
-            // ToDo: Don't add collections that are already present in children, see index.js, catalogs() getter
-            children = children.concat(this._apiChildren.list);
+            children = this._apiChildren.list;
         }
+        children = STAC.addMissingChildren(children, this).concat(this.getLinksWithRels(['item']));
         if (this._apiChildren.next) {
             children.push(this._apiChildren.next);
         }
         return children;
+    }
+
+    static addMissingChildren(catalogs, stac) {
+        let links = stac.getLinksWithRels(['child']).filter(link => {
+          // Don't add non-JSON links
+          if (!Utils.isStacMediaType(link.type, true)) {
+            return false;
+          }
+          // Don't add links that are already in collections: https://github.com/radiantearth/stac-browser/issues/103
+          // ToDo: The runtime of this can probably be improved
+          let absoluteUrl = Utils.toAbsolute(link.href, stac.getAbsoluteUrl());
+          return !catalogs.find(collection => collection.getAbsoluteUrl() === absoluteUrl);
+        });
+        return catalogs.concat(links);
     }
 
     getApiCollectionsLink() {
@@ -91,21 +104,6 @@ class STAC {
             return this[field];
         }
         return null;
-    }
-
-    getDisplayTitle(defaultTitle = null) {
-        if (this.isItem() && Utils.hasText(this.properties.title)) {
-            return this.properties.title;
-        }
-        else if (Utils.hasText(this.title)) {
-            return this.title;
-        }
-        else if (Utils.hasText(this.id)) {
-            return this.id;
-        }
-        else {
-            return defaultTitle;
-        }
     }
 
     getBrowserPath() {
@@ -130,13 +128,70 @@ class STAC {
 
     getAssetsWithRoles(roles) {
         let matches = [];
-        for(let key in this.assets) {
-            let asset = this.assets[key];
-            if (Utils.isObject(asset) && typeof asset.href === 'string' && Array.isArray(asset.roles) && asset.roles.find(role => roles.includes(role))) {
-                matches.push(asset);
+        if (Utils.isObject(this.assets)) {
+            for(let key in this.assets) {
+                let asset = this.assets[key];
+                if (Utils.isObject(asset) && typeof asset.href === 'string' && Array.isArray(asset.roles) && asset.roles.find(role => roles.includes(role))) {
+                    matches.push(asset);
+                }
             }
         }
         return matches;
+    }
+
+	static getDisplayTitle(sources, fallbackTitle = null) {
+        if (!Array.isArray(sources)) {
+            sources = [sources];
+        }
+		let stac = sources.find(o => o instanceof STAC);
+        let link = sources.find(o => Utils.isObject(o) && !(o instanceof STAC));
+		// Get title from STAC item/catalog/collection
+		if (stac && Utils.hasText(stac.getTitle())) {
+			return stac.getTitle();
+		}
+		// Get title from link
+		else if (link && Utils.hasText(link.title)) {
+			return link.title;
+		}
+		// Use id from STAC item/catalog/collection instead of titles
+		else if (stac && Utils.hasText(stac.id)) {
+			return stac.id;
+		}
+		// Use fallback title
+		else if (Utils.hasText(fallbackTitle)) {
+			return fallbackTitle;
+		}
+		// Use file or directory name from STAC as title
+		else if (stac) {
+			return Utils.titleForHref(stac.getAbsoluteUrl(), true);
+		}
+		// Use file or directory name from link as title
+		else if (link && Utils.hasText(link.href)) {
+			return Utils.titleForHref(link.href, true);
+		}
+		// Nothing available, return "untitled"
+		else {
+			return "Untitled";
+		}
+	}
+
+    getTitle() {
+        if (this.isItem()) {
+			return this.properties.title;
+		}
+		else {
+			return this.title;
+		}
+    }
+
+    _linkToAbsolute(link) {
+        return Object.assign({}, link, {href: Utils.toAbsolute(link.href, this.getAbsoluteUrl())});
+    }
+
+    getIcons() {
+        return this.getLinksWithRels(['icon'])
+            .filter(img => Utils.canBrowserDisplayImage(img))
+            .map(img => this._linkToAbsolute(img));
     }
 
     /**
@@ -147,21 +202,23 @@ class STAC {
      * @returns 
      */
     getThumbnails(browserOnly = false, prefer = null) { // prefer can be either 
-      let thumbnails = this.getAssetsWithRoles(['thumbnail', 'overview']);
-      if (prefer && thumbnails.length > 1) {
-          thumbnails.sort(a => a.roles.includes(prefer) ? -1 : 1);
-      }
-      // Get from links only if no assets are available as they should usually be the same as in assets
-      if (thumbnails.length === 0) {
-        thumbnails = this.getLinksWithRels(['preview']);
-      }
-      if (browserOnly) {
-          // Remove all images that can't be displayed in a browser
-          return thumbnails.filter(img => Utils.canBrowserDisplayImage(img));
-      }
-      else {
-        return thumbnails;
-      }
+        let thumbnails = this.getAssetsWithRoles(['thumbnail', 'overview']);
+        if (prefer && thumbnails.length > 1) {
+            thumbnails.sort(a => a.roles.includes(prefer) ? -1 : 1);
+        }
+        // Get from links only if no assets are available as they should usually be the same as in assets
+        if (thumbnails.length === 0) {
+            thumbnails = this.getLinksWithRels(['preview']);
+        }
+        // Some old catalogs use just a asset key
+        if (thumbnails.length === 0 && Utils.isObject(this.assets) && Utils.isObject(this.assets.thumbnail)) {
+            thumbnails = [this.assets.thumbnail];
+        }
+        if (browserOnly) {
+            // Remove all images that can't be displayed in a browser
+            thumbnails = thumbnails.filter(img => Utils.canBrowserDisplayImage(img));
+        }
+        return thumbnails.map(img => this._linkToAbsolute(img));
     }
 
     equals(other) {
@@ -178,7 +235,5 @@ class STAC {
     }
 
 }
-
-STAC.DEFAULT_TITLE = 'Untitled';
 
 export default STAC;

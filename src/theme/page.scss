@@ -8,7 +8,7 @@
         margin: $block-margin auto;
         
         .lead {
-            color: $secondary;
+            color: map-get($theme-colors, "secondary");
         }
     }
     .logo {
@@ -22,10 +22,10 @@
             background-repeat: no-repeat;
             background-size: contain;
             height: $logo-image-height;
+            margin-bottom: $block-margin;
         } @else if $logo == 'none' {
             display: none;
         }
-        margin-bottom: $block-margin;
     }
     > main {
         margin: $block-margin auto;
@@ -40,23 +40,55 @@
     }
 
     .map {
-        height: 400px;
+        height: 350px;
         background-color: transparent;
-        border: $border-width solid $border-color;
         @include border-radius($border-radius);
     }
-    .catalog {
-        .map {
-            height: 300px;
-        }
+
+    h1 {
+        font-weight: 700;
+        display: flex;
+        align-items: center;
     }
 
-    .styled-description {
-        text-align: justify;
+    h2 {
+        color: $gray-500;
+        font-weight: 600;
+    }
+
+    .maps-preview {
+        position: static;
+
+        .nav-pills {
+            margin: 0;
+            padding: 0;
+            
+            > li {
+                margin: 0 0.5rem;
+                &:only-child {
+                    display: none;
+                }
+                &:first-of-type {
+                    margin-top: 0.5rem;
+                }
+                &:last-of-type {
+                    margin-bottom: 0.5rem;
+                }
+            }
+        }
     }
 
     .twitter {
         @include button-variant(#1DA1F2, #1DA1F2);
+    }
+
+    .icon {
+        max-width: $max-icon-size;
+        max-height: $max-icon-size;
+    }
+    h1 > .icon {
+        max-width: 1.2em;
+        max-height: 1.2em;
     }
 
     .global-error {
@@ -64,11 +96,42 @@
         top: 2vh;
         left: 20vw;
         width: 60vw;
-        z-index: 9999;
+        z-index: 5000;
     }
 
     abbr[title], abbr[data-original-title] {
         text-decoration: none;
         border-bottom: 1px dotted $body-color;
+    }
+
+    [class*='col'] {
+        position: static;
+    }
+    .card {
+        background: transparent;
+    }
+
+    a.list-group-item {
+        color: $link-color;
+        text-decoration: $link-decoration;
+
+        &:hover {
+            color: $link-hover-color;
+            text-decoration: $link-hover-decoration;
+        }
+    }
+
+    .button-label {
+        display: none;
+    }
+    @include media-breakpoint-up(sm) {
+        .button-label.prio {
+            display: inline;
+        }
+    }
+    @include media-breakpoint-up(md) {
+        .button-label {
+            display: inline;
+        }
     }
 }

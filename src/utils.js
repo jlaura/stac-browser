@@ -8,6 +8,21 @@ const stacMediaTypes = [
 	'text/json'
 ];
 
+const browserImageTypes = [
+	'gif',
+	'jpg',
+	'jpeg',
+	'png',
+	'webp'
+];
+
+const browserMediaTypeRegexp = new RegExp(`^image/(${browserImageTypes.join('|')})`, 'i');
+
+const browserProtocols = [
+	'http',
+	'https'
+];
+
 /**
  * General utilities
  * 
@@ -87,20 +102,13 @@ export default class Utils {
 		// Parse URL and make absolute, if required
 		let uri = URI(href);
 		if (uri.is("relative") && !Utils.isGdalVfsUri(href)) { // Don't convert GDAL VFS URIs: https://github.com/radiantearth/stac-browser/issues/116
+			// Avoid that baseUrls that have a . in the last parth part will be removed (e.g. https://example.com/api/v1.0 )
+			if (!baseUrl.endsWith('/') && !baseUrl.endsWith('.json')) {
+				baseUrl += '/';
+			}
 			uri = uri.absoluteTo(baseUrl);
 		}
 		return stringify ? uri.toString() : uri;
-	}
-
-	static stacLinkToAxiosRequest(link) {
-		let method = typeof link.method === 'string' ? link.method.toLowerCase() : 'get'
-		return {
-			method,
-			url: link.href,
-			headers: link.headers,
-			data: link.body
-			// ToDo: Support for merge property from STAC API
-		};
 	}
 
 	static getLinkWithRel(links, rel) {
@@ -145,7 +153,7 @@ export default class Utils {
 	static addFiltersToLink(link, filters = {}) {
 		// Construct new link with search params
 		let newLink = Object.assign({}, link);
-		let url = new URL(newLink.href);
+		let url = new URI(newLink.href);
 		for(let key in filters) {
 			let value = filters[key];
 			if (value) {
@@ -178,29 +186,35 @@ export default class Utils {
 						continue;
 					}
 				}
-				url.searchParams.set(key, value);
+				url.setQuery(key, value);
 			}
 			else {
-				url.searchParams.delete(key);
+				url.removeQuery(key);
 			}
 		}
 		newLink.href = url.toString();
 		return newLink;
 	}
 
-	static titleForHref(href) {
+	static titleForHref(href, preferFileName = false) {
 		let uri = URI(href);
 		let auth = uri.authority();
 		let file = uri.filename().replace(/^(.{1,})\.\w+$/, '$1');
 		let dir = uri.directory().replace(/^\//, '');
-		if (auth && file) {
-			return `${file} at ${auth}`;
-		}
-		else if (auth) {
-			return auth;
+		if (auth && file && !preferFileName) {
+			let path = uri.path().replace(/^\//, '');
+			if (auth === 'doi.org' && path.startsWith('10.')) {
+				return `DOI ${path}`;
+			}
+			else {
+				return `${file} at ${auth}`;
+			}
 		}
 		else if (file && !commonFileNames.includes(file)) {
 			return file;
+		}
+		else if (auth) {
+			return auth;
 		}
 		else if (dir) {
 			return dir;
@@ -211,21 +225,25 @@ export default class Utils {
 	}
 
 	static canBrowserDisplayImage(img) {
-		if (typeof img.type !== 'string' || typeof img.href !== 'string') {
+		if (typeof img.href !== 'string') {
 			return false;
 		}
-		if (!img.href.match(/https?:\/\//i)) {
+		let uri = new URI(img.href);
+		let protocol = uri.protocol().toLowerCase();
+		if (protocol && !browserProtocols.includes(protocol)) {
 			return false;
 		}
-		switch(img.type.toLowerCase()) {
-			case 'image/png':
-			case 'image/jpg':
-			case 'image/jpeg':
-			case 'image/webp':
-			case 'image/gif':
-				return true;
-			default:
-				return false;
+		else if (browserMediaTypeRegexp.test(img.type)) {
+			return true;
+		}
+		else if (browserImageTypes.includes(uri.suffix().toLowerCase())) {
+			return true;
+		}
+		else if (img.type) {
+			return false;
+		}
+		else {
+			return true; // If no img.type is given, try to load it anyway: https://github.com/radiantearth/stac-browser/issues/147
 		}
 	}
 

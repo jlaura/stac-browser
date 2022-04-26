@@ -8,7 +8,7 @@
 
       <b-form-group label="Spatial Extent" label-for="provideBBox">
         <b-form-checkbox id="provideBBox" v-model="provideBBox" value="1" @change="setBBox">Filter by spatial extent</b-form-checkbox>
-        <Map v-if="provideBBox" :stac="stac" :selectBounds="true" @bounds="setBBox" />
+        <Map class="mb-4" v-if="provideBBox" :stac="stac" :selectBounds="true" @bounds="setBBox" />
       </b-form-group>
 
       <b-form-group v-if="!collectionOnly" label="Collections" label-for="collections">
@@ -19,7 +19,12 @@
         <b-form-tags input-id="ids" :value="filters.ids" @input="setIds" separator=" ,;" remove-on-delete add-on-change placeholder="List one or multiple Item IDs..."></b-form-tags>
       </b-form-group>
 
-      <b-form-group label="Limit" label-for="limit" :description="`Number of items requested per page, max ${maxItems} items.`">
+      <b-form-group v-if="sort" label="Sort" label-for="sort" description="Some APIs may not support all of the options.">
+        <b-form-select id="sort" v-model="sortTerm" :options="sortOptions" placeholder="Default"></b-form-select>
+        <SortButtons class="mt-1" v-model="sortOrder" enforce />
+      </b-form-group>
+
+      <b-form-group label="Items per page" label-for="limit" :description="`Number of items requested per page, max. ${maxItems} items.`">
         <b-form-input id="limit" :value="filters.limit" @change="setLimit" min="1" :max="maxItems" type="number" :placeholder="`Default (${itemsPerPage})`"></b-form-input>
       </b-form-group>
 
@@ -30,7 +35,7 @@
 </template>
 
 <script>
-import { BForm, BFormGroup, BFormInput, BFormCheckbox, BFormTags } from 'bootstrap-vue';
+import { BForm, BFormGroup, BFormInput, BFormCheckbox, BFormSelect, BFormTags } from 'bootstrap-vue';
 import DatePicker from 'vue2-datepicker';
 import { mapState } from "vuex";
 
@@ -41,9 +46,11 @@ export default {
     BFormGroup,
     BFormInput,
     BFormCheckbox,
+    BFormSelect,
     BFormTags,
     DatePicker,
-    Map: () => import('./Map.vue')
+    Map: () => import('./Map.vue'),
+    SortButtons: () => import('./SortButtons.vue')
   },
   props: {
     stac: {
@@ -58,6 +65,10 @@ export default {
       type: String,
       default: 'Filter'
     },
+    sort: {
+      type: Boolean,
+      default: false
+    },
     collectionOnly: {
       type: Boolean,
       default: false
@@ -65,6 +76,14 @@ export default {
   },
   data() {
     return {
+      sortOrder: 1,
+      sortTerm: null,
+      sortOptions: [
+        { value: null, text: 'Default' },
+        { value: 'properties.datetime', text: 'Date and Time' },
+        { value: 'id', text: 'ID' },
+        { value: 'properties.title', text: 'Title' }
+      ],
       maxItems: 10000,
       provideBBox: false,
       filters: this.getDefaultValues()
@@ -90,6 +109,10 @@ export default {
             return dt;
           });
         }
+        if (this.sort && typeof filters.sortby === 'string') {
+          this.sortOrder = filters.sortby.startsWith('-') ? -1 : 1;
+          this.sortTerm = filters.sortby.replace(/^(\+|-)/, '');
+        }
         this.filters = filters;
       }
     }
@@ -101,10 +124,14 @@ export default {
         bbox: null,
         limit: null,
         ids: [],
-        collections: []
+        collections: [],
+        sortby: null
       };
     },
     onSubmit() {
+      if (this.sort) {
+        this.filters.sortby = this.formatSort();
+      }
       this.$emit('input', this.filters, false);
     },
     onReset() {
@@ -152,6 +179,15 @@ export default {
     },
     setIds(ids) {
       this.filters.ids = ids;
+    },
+    formatSort() {
+      if (this.sort && this.sortTerm) {
+        let order = this.sortOrder < 0 ? '-' : '';
+        return `${order}${this.sortTerm}`;
+      }
+      else {
+        return null;
+      }
     }
   }
 }
@@ -160,8 +196,8 @@ export default {
 <style lang="scss">
 @import '../theme/variables.scss';
 
-$default-color: $secondary;
-$primary-color: $primary;
+$default-color: map-get($theme-colors, "secondary");
+$primary-color: map-get($theme-colors, "primary");
 
 @import '~vue2-datepicker/scss/index.scss';
 

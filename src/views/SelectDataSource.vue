@@ -103,21 +103,21 @@ export default {
     },
     onSubmit() {
       this.$store.commit('resetCatalog'); // Reset loaded STAC catalog
-      this.$router.push({
-        path: this.toBrowserPath(this.url)
-      });
+      this.$router.push(this.toBrowserPath(this.url));
     }
   }
 };
 </script>
 
 <style lang="scss">
-.stacIndex {
-  max-height: 50vh;
-  overflow: auto;
+#stac-browser {
+  .stacIndex {
+    max-height: 50vh;
+    overflow: auto;
 
-  .active .styled-description a {
-    color: white;
+    .active .styled-description a {
+      color: white;
+    }
   }
 }
 </style>

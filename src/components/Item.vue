@@ -1,24 +1,25 @@
 <template>
-  <b-card no-body class="item-card" :class="{queued: !this.data}" v-bind="cardProps" v-b-visible.200="load">
-    <b-card-img v-if="thumbnail && showThumbnail" class="thumbnail" :src="thumbnail.href" :alt="thumbnail.title" fluid></b-card-img>
+  <b-card no-body class="item-card" :class="{queued: !this.data, deprecated: isDeprecated}" v-bind="cardProps" v-b-visible.200="load">
+    <b-card-img v-if="thumbnail && showThumbnail" class="thumbnail" :src="thumbnail.href" :alt="thumbnail.title" :crossorigin="crossOriginMedia"></b-card-img>
     <b-card-body>
       <b-card-title>
-        <StacLink :link="item" :title="title" class="stretched-link" />
+        <StacLink :data="[data, item]" class="stretched-link" />
       </b-card-title>
       <b-card-text><small class="text-muted">
         <template v-if="extent">{{ extent | TemporalExtent }}</template>
         <template v-else-if="data && data.properties.datetime">{{ data.properties.datetime | Timestamp }}</template>
         <template v-else>No time given</template>
       </small></b-card-text>
-      <b-card-text v-if="fileFormats.length > 0">
+      <b-card-text v-if="fileFormats.length > 0 || isDeprecated">
         <b-badge v-for="format in fileFormats" :key="format" variant="secondary" class="mr-1 mt-1 fileformat">{{ format | MediaType }}</b-badge>
+        <b-badge v-if="isDeprecated" variant="warning" class="mr-1 mt-1 deprecated">Deprecated</b-badge>
       </b-card-text>
     </b-card-body>
   </b-card>
 </template>
 
 <script>
-import { mapGetters } from 'vuex';
+import { mapGetters, mapState } from 'vuex';
 import StacLink from './StacLink.vue';
 import STAC from '../stac';
 
@@ -43,6 +44,7 @@ export default {
     }
   },
   computed: {
+    ...mapState(['crossOriginMedia']),
     ...mapGetters(['getStac']),
     cardProps() {
       let props = {};
@@ -71,12 +73,6 @@ export default {
         title: ''
       };
     },
-    title() {
-      if (this.data) {
-        return this.data.properties.title || this.data.id;
-      }
-      return null;
-    },
     extent() {
       if (this.data && (this.data.properties.start_datetime || this.data.properties.end_datetime)) {
         return [this.data.properties.start_datetime, this.data.properties.end_datetime];
@@ -91,6 +87,9 @@ export default {
         .filter(asset => Array.isArray(asset.roles) && asset.roles.includes('data') && typeof asset.type === 'string') // Look for data files
         .map(asset => asset.type) // Array shall only contain media types
         .filter((v, i, a) => a.indexOf(v) === i); // Unique values
+    },
+    isDeprecated() {
+      return this.data instanceof STAC && Boolean(this.data.properties.deprecated);
     }
   },
   methods: {
@@ -108,24 +107,41 @@ export default {
 </script>
 
 <style lang="scss">
-.item-card {
-  text-align: center;
+#stac-browser {
+  .item-card {
+    text-align: center;
 
-  &.queued {
-    min-height: 200px;
-  }
+    &.deprecated {
+      opacity: 0.7;
 
-  .fileformat {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    max-width: 100%;
-  }
+      &:hover {
+        opacity: 1;
+      }
+    }
 
-  .card-img {
-    width: auto;
-    height: auto;
-    max-width: 100%;
-    max-height: 200px;
+    &.queued {
+      min-height: 200px;
+    }
+
+    .badge {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 100%;
+
+      &.deprecated {
+        text-transform: uppercase;
+      }
+    }
+
+    .card-img {
+      width: auto;
+      height: auto;
+      max-width: 100%;
+      max-height: 200px;
+    }
+    .card-body {
+      text-align: center;
+    }
   }
 }
 </style>

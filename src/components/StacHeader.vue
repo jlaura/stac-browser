@@ -2,14 +2,27 @@
   <b-row>
     <b-col md="12">
       <Share class="float-right" :title="title" :stacUrl="url" :stacVersion="stacVersion" />
-      <h1>{{ title }}</h1>
+      <h1>
+        <template v-if="icon">
+          <img :src="icon.href" :alt="icon.title" :title="icon.title" class="icon mr-2" />
+        </template>
+        <span class="title">{{ title }}</span>
+      </h1>
       <p class="lead" v-if="url || isSearchPage()">
-        <span class="in mr-3" v-if="containerLink">in <StacLink :link="containerLink" /></span>
+        <span class="in mr-3" v-if="containerLink">in <StacLink :data="containerLink" /></span>
         <b-button-group>
-          <b-button v-if="parentLink" :to="toBrowserPath(parentLink.href)" :title="parentLink.title" variant="outline-primary" size="sm"><b-icon-arrow-90deg-up /> Go to Parent</b-button>
-          <b-button v-if="collectionLink" :to="toBrowserPath(collectionLink.href)" :title="collectionLink.title" variant="outline-primary" size="sm"><b-icon-folder-symlink /> Go to Collection</b-button>
-          <b-button variant="outline-primary" size="sm" v-b-toggle.sidebar><b-icon-book /> Browse</b-button>
-          <b-button v-if="supportsSearch && !isSearchPage()" variant="outline-primary" size="sm" :to="searchBrowserLink"><b-icon-search /> Search</b-button>
+          <b-button v-if="parentLink" :to="toBrowserPath(parentLink.href)" :title="`Go to parent > ${parentLink.title}`" variant="outline-primary" size="sm">
+            <b-icon-arrow-90deg-up /> <span class="button-label prio">Go to Parent</span>
+          </b-button>
+          <b-button v-if="collectionLink" :to="toBrowserPath(collectionLink.href)" :title="`Go to collection > ${collectionLink.title}`" variant="outline-primary" size="sm">
+            <b-icon-folder-symlink /> <span class="button-label prio">Go to Collection</span>
+          </b-button>
+          <b-button variant="outline-primary" size="sm" v-b-toggle.sidebar title="Browse">
+            <b-icon-book /> <span class="button-label prio">Browse</span>
+          </b-button>
+          <b-button v-if="supportsSearch && !isSearchPage()" variant="outline-primary" size="sm" :to="searchBrowserLink" title="Search">
+            <b-icon-search /> <span class="button-label prio">Search</span>
+          </b-button>
         </b-button-group>
       </p>
     </b-col>
@@ -20,6 +33,7 @@
 import { mapState, mapGetters } from 'vuex';
 import StacLink from './StacLink.vue';
 import { BIconArrow90degUp, BIconBook, BIconFolderSymlink, BIconSearch } from "bootstrap-vue";
+import STAC from '../stac';
 import Utils from '../utils';
 
 export default {
@@ -33,8 +47,17 @@ export default {
     Share: () => import('../components/Share.vue')
   },
   computed: {
-    ...mapState(['allowSelectCatalog', 'catalogUrl', 'url', 'title']),
+    ...mapState(['allowSelectCatalog', 'catalogUrl', 'data', 'url', 'title']),
     ...mapGetters(['root', 'parentLink', 'collectionLink', 'stacVersion', 'supportsSearch', 'toBrowserPath']),
+    icon() {
+      if (this.data instanceof STAC) {
+        let icons = this.data.getIcons();
+        if (icons.length > 0) {
+          return icons[0];
+        }
+      }
+      return null;
+    },
     searchBrowserLink() {
       if (!this.allowSelectCatalog) {
         return '/search';
@@ -62,7 +85,7 @@ export default {
           return {
             href: this.root.getAbsoluteUrl(),
             rel: 'root',
-            title: this.root.getDisplayTitle()
+            title: STAC.getDisplayTitle(this.root)
           };
         }
       }
