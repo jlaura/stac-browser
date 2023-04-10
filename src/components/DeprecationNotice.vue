@@ -1,86 +1,107 @@
 <template>
-	<b-alert :variant="variant" show>
-		<strong>{{ title }}</strong>&nbsp;
-		<small v-if="isDeprecated">
-			Please note that this {{ type }} is deprecated with the potential to be removed in any of the next versions.
-			It should be transitioned out of usage as soon as possible. Refrain from using it in new projects.
-		</small>
-		<small v-else>This {{ type }} is <em>not</em> deprecated, but there are other versions available:</small>
-		<ul v-if="latestLink || successorLink || predecessorLink">
-			<li v-if="latestLink"><small><StacLink :data="latestLink" fallbackTitle="Go to latest version" tooltip="Go to latest version" /></small></li>
-			<li v-if="successorLink"><small><StacLink :data="successorLink" fallbackTitle="Go to newer version" tooltip="Go to newer version" /></small></li>
-			<li v-if="predecessorLink"><small><StacLink :data="predecessorLink" fallbackTitle="Go to previous version" tooltip="Go to previous version" /></small></li>
-		</ul>
-	</b-alert>
+  <b-alert class="deprecation" :variant="variant" show>
+    <h3>{{ title }}</h3>
+    <Description :description="message" inline />
+    <ul v-if="latestLink || successorLink || predecessorLink">
+      <li v-if="latestLink">
+        {{ $t('deprecation.latestVersion') }}
+        <StacLink :data="latestLink" :fallbackTitle="$t('fallbackTitle')" />
+      </li>
+      <li v-if="successorLink">
+        {{ $t('deprecation.successorVersion') }}
+        <StacLink :data="successorLink" :fallbackTitle="$t('fallbackTitle')" />
+      </li>
+      <li v-if="predecessorLink">
+        {{ $t('deprecation.predecessorVersion') }}
+        <StacLink :data="predecessorLink" :fallbackTitle="$t('fallbackTitle')" />
+      </li>
+    </ul>
+  </b-alert>
 </template>
 
 <script>
-import Utils from '../utils';
+import Description from './Description.vue';
 
 export default {
-	name: 'DeprecationNotice',
-	components: {
-		StacLink: () => import('./StacLink.vue')
-	},
-	props: {
-		data: {
-			type: Object,
-			default: null
-		}
-	},
-	computed: {
-		latestLink() {
-			return this.getLink('latest-version');
-		},
-		successorLink() {
-			return this.getLink('successor-version');
-		},
-		predecessorLink() {
-			return !this.isDeprecated && this.getLink('predecessor-version'); // Show prev. link only if not deprecated
-		},
-		variant() {
-			return this.isDeprecated ? 'warning' : 'info';
-		},
-		isDeprecated() {
-			return Boolean(this.data.isItem() ? this.data.properties.deprecated : this.data.deprecated);
-		},
-		title() {
-			if (this.isDeprecated) {
-				return 'Deprecated';
-			}
-			else if (this.latestLink || this.successorLink) {
-				return 'Outdated';
-			}
-			else {
-				return 'Other Versions';
-			}
-		},
-		type() {
-			if (this.data.isItem()) {
-				return "Item";
-			}
-			else {
-				return this.data.type;
-			}
-		}
-	},
-  methods: {
-    getLink(rel) {
-      let links = this.data.getLinksWithRels(rel).filter(link => Utils.isStacMediaType(link.type, true));
-			if (links.length > 0) {
-				return links[0]
-			}
-			else {
-				return null;
-			}
+  name: 'DeprecationNotice',
+  components: {
+    StacLink: () => import('./StacLink.vue'),
+    Description
+  },
+  props: {
+    data: {
+      type: Object,
+      default: null
+    }
+  },
+  computed: {
+    message() {
+      let vars = {type: this.type};
+      if (this.isDeprecated) {
+        return this.$t('deprecation.warning', vars);
+
+      }
+      else {
+        return this.$t('deprecation.otherVersionsNotice', vars);
+      }
+    },
+    latestLink() {
+      return this.data.getStacLinkWithRel('latest-version');
+    },
+    successorLink() {
+      return this.data.getStacLinkWithRel('successor-version');
+    },
+    predecessorLink() {
+      // Show prev. link only if not deprecated
+      return !this.isDeprecated && this.data.getStacLinkWithRel('predecessor-version');
+    },
+    variant() {
+      return this.isDeprecated ? 'warning' : 'info';
+    },
+    isDeprecated() {
+      return Boolean(this.data.isItem() ? this.data.properties.deprecated : this.data.deprecated);
+    },
+    title() {
+      if (this.isDeprecated) {
+        return this.$t('deprecated');
+      }
+      else if (this.latestLink || this.successorLink) {
+        return this.$t('deprecation.outdatedTitle');
+      }
+      else {
+        return this.$t('deprecation.otherVersionsTitle');
+      }
+    },
+    type() {
+      if (this.data.isItem()) {
+        return this.$tc('stacItem');
+      }
+      else if (this.data.isCollection()) {
+        return this.$tc(`stacCollection`);
+      }
+      else if (this.data.isCatalog()) {
+        return this.$tc(`stacCatalog`);
+      }
+      else {
+        return '';
+      }
     }
   }
-}
+};
 </script>
 
 <style lang="scss" scoped>
-ul {
-	margin-top: 0.5em;
-	margin-bottom: 0;
+.deprecation {
+  h3 {
+    font-size: 1em;
+    font-weight: bold;
+    display: inline-block;
+    margin: 0;
+    margin-right: 1em;
+  }
+  ul {
+    margin-top: 0.5em;
+    margin-bottom: 0;
+  }
 }
 </style>

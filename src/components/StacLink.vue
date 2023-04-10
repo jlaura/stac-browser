@@ -1,27 +1,21 @@
 <template>
   <component :is="component" class="stac-link" v-bind="attributes" :title="tooltip">
     <template v-if="icon">
-      <img :src="icon.href" :alt="icon.title" :title="icon.title" class="icon mr-2" />
+      <img :src="icon.href" :alt="icon.title" :title="icon.title" class="icon mr-2">
     </template>
     <span class="title">{{ displayTitle }}</span>
-    <template v-if="!isStacBrowserLink">
-      <small><b-icon-box-arrow-up-right class="ml-1 align-baseline" /></small>
-    </template>
   </component>
 </template>
 
 <script>
 import { mapState, mapGetters } from 'vuex';
+import { stacBrowserNavigatesTo } from "../rels";
 import Utils from '../utils';
-import STAC from '../stac';
-import { BIconBoxArrowUpRight } from 'bootstrap-vue';
+import STAC from '../models/stac';
 import URI from 'urijs';
 
 export default {
   name: "StacLink",
-  components: {
-    BIconBoxArrowUpRight
-  },
   props: {
     data: {
       type: [Object, Array],
@@ -36,7 +30,8 @@ export default {
       default: null
     },
     tooltip: {
-      type: String
+      type: String,
+      default: null
     }
   },
   computed: {
@@ -80,28 +75,7 @@ export default {
       if (!Utils.isStacMediaType(this.link.type, true)) {
         return false;
       }
-      switch(this.link.rel) {
-        case 'root': // STAC hierarchical links v
-        case 'child':
-        case 'parent':
-        case 'item':
-        case 'collection':
-        case 'related': // Links to other catalogs or items v
-        case 'derived_from':
-        case 'canonical':
-        case 'latest-version': // version extension v
-        case 'predecessor-version':
-        case 'successor-version':
-        case 'source': // label extension
-        case 'first': // Pagination v
-        case 'prev':
-        case 'previous':
-        case 'next':
-        case 'last':
-          return true;
-        default:
-          return false;
-      }
+      return stacBrowserNavigatesTo.includes(this.link.rel);
     },
     attributes() {
       if (this.isStacBrowserLink) {
@@ -122,27 +96,33 @@ export default {
       return this.isStacBrowserLink ? 'router-link' : 'a';
     },
     href() {
-      let href;
-      if (this.stac) {
-        href = this.stac.getBrowserPath();
-      }
-      else if (this.isStacBrowserLink) {
-        href = this.toBrowserPath(this.link.href);
+      if (this.stac || this.isStacBrowserLink) {
+        let href;
+        if (this.stac) {
+          href = this.stac.getBrowserPath();
+        }
+        else {
+          href = this.toBrowserPath(this.link.href);
+        }
+
+        // Add private query parameters to links: https://github.com/radiantearth/stac-browser/issues/142
+        if (Utils.size(this.privateQueryParameters) > 0) {
+          let uri = new URI(href);
+          for(let key in this.privateQueryParameters) {
+            let queryKey = `~${key}`;
+            if (!uri.hasQuery(queryKey)) {
+              uri.addQuery(queryKey, this.privateQueryParameters[key]);
+            }
+          }
+          href = uri.toString();
+        }
+
+        return href;
       }
       else {
-        href = this.getRequestUrl(this.link.href);
+        return this.getRequestUrl(this.link.href);
       }
 
-      // Add private query parameters to links: https://github.com/radiantearth/stac-browser/issues/142
-      if (Utils.size(this.privateQueryParameters) > 0) {
-        let uri = new URI(href);
-        for(let key in this.privateQueryParameters) {
-          uri.addQuery(`~${key}`, this.privateQueryParameters[key]);
-        }
-        href = uri.toString();
-      }
-
-      return href;
     },
     displayTitle() {
       if (this.title) {

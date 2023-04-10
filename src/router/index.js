@@ -2,7 +2,7 @@ import Browse from '../views/Browse.vue';
 
 function getRoutes(config) {
   let routes = [];
-  
+
   if (config.allowExternalAccess) {
     routes.push({
       path: "/external/(.*)",
@@ -15,32 +15,32 @@ function getRoutes(config) {
       }
     });
   }
-  
+
   if (!config.catalogUrl) {
     routes.push({
       path: "/",
       name: "select",
       component: () => import("../views/SelectDataSource.vue")
     });
-    routes.push(  {
+    routes.push({
       path: "/search/external/(.*)",
       name: "search",
       component: () => import("../views/Search.vue"),
       props: route => {
         return {
-          loadRoot: `/external/${route.params.pathMatch}`
+          loadParent: `/external/${route.params.pathMatch}`
         };
       }
     });
   }
   else {
-    routes.push(  {
+    routes.push({
       path: "/search",
       name: "search",
       component: () => import("../views/Search.vue")
     });
   }
-  
+
   routes.push({
     path: "/(.*)",
     name: "browse",

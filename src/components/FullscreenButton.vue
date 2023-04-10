@@ -13,18 +13,19 @@ import { BIconFullscreen, BIconFullscreenExit } from 'bootstrap-vue';
 
 export default {
   name: 'FullscreenButton',
+  components: {
+    BIconFullscreen,
+    BIconFullscreenExit
+  },
   props: {
     element: {
+      type: [Function, String, Object],
       required: true
     },
     zIndex: {
       type: Number,
       default: 9000
     }
-  },
-  components: {
-    BIconFullscreen,
-    BIconFullscreenExit
   },
   data() {
     return {
@@ -33,16 +34,16 @@ export default {
       oldZIndex: 'auto'
     };
   },
-	computed: {
-		title() {
-			return this.isFullscreen ? 'Close Fullscreen' : 'View Fullscreen';
-		}
-	},
+  computed: {
+    title() {
+      return this.isFullscreen ? this.$t('fullscreen.exit') : this.$t('fullscreen.show');
+    }
+  },
   mounted() {
     this.keyDownFn = this.onkeyDown.bind(this);
     let el = this.getElement();
     if (el) {
-			el.style.position = "relative";
+      el.style.position = "relative";
       el.addEventListener('keydown', this.keyDownFn);
     }
   },
@@ -75,7 +76,7 @@ export default {
     toggleFullscreen() {
       let el = this.getElement();
       if (!this.isFullscreen) {
-				document.body.style.overflow = "hidden";
+        document.body.style.overflow = "hidden";
         this.isFullscreen = true;
         el.classList.add('fullscreen');
         this.oldZIndex = el.style.zIndex;
@@ -83,7 +84,7 @@ export default {
       }
       else {
         this.isFullscreen = false;
-				document.body.style.overflow = null;
+        document.body.style.overflow = null;
         el.classList.remove('fullscreen');
         // Revert z-index changes
         el.style.zIndex = this.oldZIndex;

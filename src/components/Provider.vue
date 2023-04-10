@@ -9,23 +9,21 @@
           </span>
           {{ provider.name }}
         </span>
-        <div class="roles ml-1" v-if="Array.isArray(provider.roles)">
-          <b-badge v-for="role in provider.roles" :key="role" variant="secondary" class="ml-1 mb-1">{{ role }}</b-badge>
-        </div>
+        <ProviderRoles :roles="provider.roles" />
       </b-button>
     </b-card-header>
     <b-collapse :id="id" v-model="expanded" accordion="providers" role="tabpanel">
       <b-card-body>
-        <b-button-group v-if="provider.url">
-          <b-button :href="provider.url" target="_blank" variant="outline-primary">
-            Go to homepage
+        <b-button-group v-if="provider.url || provider.email || provider.mail">
+          <b-button :href="provider.url" target="_blank" variant="primary">
+            {{ $t('providers.homepage') }}
           </b-button>
-          <b-button v-if="provider.email || provider.mail" :href="`mailto:${provider.email || provider.mail}`" target="_blank" variant="outline-primary">
-            Send e-mail
+          <b-button v-if="provider.email || provider.mail" :href="`mailto:${provider.email || provider.mail}`" target="_blank" variant="primary">
+            {{ $t('providers.email') }}
           </b-button>
         </b-button-group>
         <b-card-text class="mt-4" v-if="provider.description">
-          <Description :description="provider.description" :compact="true" />
+          <Description :description="provider.description" compact />
         </b-card-text>
         <Metadata class="mt-4" :data="provider" :ignoreFields="ignore" title="" type="Provider" />
       </b-card-body>
@@ -36,7 +34,7 @@
 <script>
 import { BCollapse, BIconChevronRight, BIconChevronDown } from 'bootstrap-vue';
 import Description from './Description.vue';
-import Metadata from './Metadata.vue';
+import ProviderRoles from './ProviderRoles.vue';
 
 export default {
   name: 'Provider',
@@ -45,7 +43,8 @@ export default {
     BIconChevronDown,
     BIconChevronRight,
     Description,
-    Metadata
+    Metadata: () => import('./Metadata.vue'),
+    ProviderRoles
   },
   props: {
     provider: {
@@ -63,7 +62,7 @@ export default {
       ignore: ['url', 'name', 'description', 'roles']
     };
   }
-}
+};
 </script>
 
 <style lang="scss">
@@ -78,12 +77,6 @@ export default {
       }
       .card-body {
         padding: 0;
-      }
-      &:only-child:empty {
-        display: inline !important;
-        &:before {
-          content: 'No additional information available.';
-        }
       }
     }
   }

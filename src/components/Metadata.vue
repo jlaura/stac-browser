@@ -1,28 +1,23 @@
 <template>
-    <section v-if="formattedData.length > 0" class="metadata">
-        <h2 v-if="title">{{ title }}</h2>
-        <b-card-group v-if="formattedData.length > 0" columns :class="`count-${formattedData.length}`">
-            <b-card no-body v-for="group in formattedData" :key="group.extension" class="metadata-card">
-                    <b-card-title>
-                        <div v-if="group.extension" v-html="group.label" />
-                        <template v-else>{{ commmonMetadataTitle }}</template>
-                    </b-card-title>
-                    <section class="border metadata-rows">
-                        <b-row v-for="(prop, key) in group.properties" :key="key">
-                            <b-col md="3" class="label" :title="key" v-html="prop.label" />
-                            <b-col md="9" class="value" v-html="prop.formatted" />
-                        </b-row>
-                    </section>
-            </b-card>
-        </b-card-group>
-    </section>
+  <section v-if="formattedData.length > 0" class="metadata">
+    <h2 v-if="title">{{ title || $t('metadata.title') }}</h2>
+    <b-card-group columns :class="`count-${formattedData.length}`">
+      <MetadataGroup v-for="group in formattedData" v-bind="group" :key="group.extension" />
+    </b-card-group>
+  </section>
 </template>
 
 <script>
-import StacFields from '@radiantearth/stac-fields';
+import { formatAsset, formatCollection, formatGrouped, formatItemProperties, formatLink, formatProvider, formatSummaries } from '@radiantearth/stac-fields';
+import MetadataGroup from './metadata/MetadataGroup.vue';
+import { isoDuration } from '@musement/iso-duration';
+import { mapState } from 'vuex';
 
 export default {
     name: "Metadata",
+    components: {
+        MetadataGroup
+    },
     props: {
         data: {
             type: Object,
@@ -42,29 +37,52 @@ export default {
         },
         title: {
             type: String,
-            default: 'Metadata'
-        },
-        commmonMetadataTitle: {
-            type: String,
-            default: 'General'
+            default: null
         }
     },
+    data() {
+        return {
+            formattedData: []
+        };
+    },
     computed: {
-        formattedData() {
+        ...mapState(['uiLanguage']),
+    },
+    watch: {
+        uiLanguage: {
+            immediate: true,
+            async handler (locale) {
+                if (!locale) {
+                    return;
+                }
+                
+                // Update durations (for stac-fields)
+                const en = (await import(`../locales/${locale}/duration.js`)).default;
+                isoDuration.setLocales({en});
+
+                // Format the data again to update translations
+                this.formattedData = this.formatData();
+            }
+        }
+    },
+    methods: {
+        formatData() {
             // Filter all fields as given in ignoreFields and also 
             // ignore fields starting with an underscore which is likely originating from the STAC class
             let filter = key => !key.startsWith('_') && !this.ignoreFields.includes(key);
             switch(this.type) {
                 case 'Asset':
-                    return StacFields.formatAsset(this.data, this.context, filter);
+                    return formatAsset(this.data, this.context, filter);
                 case 'Link':
-                    return StacFields.formatLink(this.data, this.context, filter);
+                    return formatLink(this.data, this.context, filter);
+                case 'Provider':
+                    return formatProvider(this.data, this.context, filter);
                 case 'Item':
-                    return StacFields.formatItemProperties(this.data, filter);
+                    return formatItemProperties(this.data, filter);
                 case 'Collection':
                 case 'Catalog': {
-                    let core = StacFields.formatCollection(this.data, filter);
-                    let summaries = StacFields.formatSummaries(this.data, filter);
+                    let core = formatCollection(this.data, filter);
+                    let summaries = formatSummaries(this.data, filter);
                     // Merge summaries into collection metadata
                     summaries.forEach(summaryGroup => {
                         let index = core.findIndex(coreGroup => summaryGroup.extension === coreGroup.extension);
@@ -75,10 +93,12 @@ export default {
                             core.push(summaryGroup);
                         }
                     });
-                    return core.sort((a,b) => a.label.localeCompare(b.label));
+                    return core.sort((a,b) => a.label.localeCompare(b.label, this.uiLanguage));
                 }
+                case 'FeatureCollection':
+                    return {};
                 default:
-                    return [];
+                    return formatGrouped(this.context, this.data, this.type, filter);
             }
         }
     }
@@ -133,13 +153,38 @@ export default {
             margin: 0;
             padding-right: 0;
 
-            > ul, > ol, > pre, > dl {
+            > ul, > ol, > pre, > dl, > .description {
                 max-height: 15em;
                 overflow: auto;
             }
+
+            .styled-description {
+                h1 {
+                    font-size: 1.5em;
+                }
+                h2 {
+                    font-size: 1.4em;
+                }
+                h3 {
+                    font-size: 1.3em;
+                }
+                h4 {
+                    font-size: 1.2em;
+                }
+                h5 {
+                    font-size: 1.1em;
+                }
+                h6 {
+                    font-size: 1.0em;
+                }
+            }
         }
-        ul, ol {
+        ul {
             padding-left: 1.4em;
+            margin-bottom: 0;
+        }
+        ol {
+            padding-left: 2em;
             margin-bottom: 0;
         }
         ul li {
@@ -200,6 +245,16 @@ export default {
         }
         .checksum-input {
             width: 100%;
+        }
+
+        .color {
+            text-align: center;
+            
+            .color-code {
+                color: white;
+                text-shadow: 1px 1px 1px #000;
+                text-align: center;
+            }
         }
     }
 }

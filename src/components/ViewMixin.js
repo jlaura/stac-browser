@@ -27,8 +27,8 @@ export default {
         return this.$store.state.cardViewMode;
       },
       set(cardViewMode) {
-        this.$store.commit('config', {cardViewMode});
+        this.$store.commit('config', { cardViewMode });
       }
     }
   }
-}
+};

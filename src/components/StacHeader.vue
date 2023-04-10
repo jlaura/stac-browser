@@ -1,27 +1,37 @@
 <template>
   <b-row>
     <b-col md="12">
-      <Share class="float-right" :title="title" :stacUrl="url" :stacVersion="stacVersion" />
+      <Source class="float-right" :title="title" :stacUrl="url" :stacVersion="stacVersion" />
       <h1>
         <template v-if="icon">
-          <img :src="icon.href" :alt="icon.title" :title="icon.title" class="icon mr-2" />
+          <img :src="icon.href" :alt="icon.title" :title="icon.title" class="icon mr-2">
         </template>
         <span class="title">{{ title }}</span>
       </h1>
       <p class="lead" v-if="url || isSearchPage()">
-        <span class="in mr-3" v-if="containerLink">in <StacLink :data="containerLink" /></span>
+        <i18n v-if="containerLink" tag="span" path="in" class="in mr-3">
+          <template #catalog><StacLink :data="containerLink" /></template>
+        </i18n>
         <b-button-group>
-          <b-button v-if="parentLink" :to="toBrowserPath(parentLink.href)" :title="`Go to parent > ${parentLink.title}`" variant="outline-primary" size="sm">
-            <b-icon-arrow-90deg-up /> <span class="button-label prio">Go to Parent</span>
+          <b-button v-if="parentLink" :to="toBrowserPath(parentLink.href)" :title="parentLinkTitle" variant="outline-primary" size="sm">
+            <b-icon-arrow-90deg-up /> <span class="button-label prio">{{ $t('goToParent.label') }}</span>
           </b-button>
-          <b-button v-if="collectionLink" :to="toBrowserPath(collectionLink.href)" :title="`Go to collection > ${collectionLink.title}`" variant="outline-primary" size="sm">
-            <b-icon-folder-symlink /> <span class="button-label prio">Go to Collection</span>
+          <b-button v-if="collectionLink" :to="toBrowserPath(collectionLink.href)" :title="collectionLinkTitle" variant="outline-primary" size="sm">
+            <b-icon-folder-symlink /> <span class="button-label prio">{{ $t('goToCollection.label') }}</span>
           </b-button>
-          <b-button variant="outline-primary" size="sm" v-b-toggle.sidebar title="Browse">
-            <b-icon-book /> <span class="button-label prio">Browse</span>
+          <b-button variant="outline-primary" size="sm" :title="$t('browse')" v-b-toggle.sidebar @click="$emit('enableSidebar')">
+            <b-icon-book /> <span class="button-label prio">{{ $t('browse') }}</span>
           </b-button>
-          <b-button v-if="supportsSearch && !isSearchPage()" variant="outline-primary" size="sm" :to="searchBrowserLink" title="Search">
-            <b-icon-search /> <span class="button-label prio">Search</span>
+          <b-button v-if="searchBrowserLink" variant="outline-primary" size="sm" :to="searchBrowserLink" :title="$t('search.title')" :pressed="isSearchPage()">
+            <b-icon-search /> <span class="button-label prio">{{ $t('search.title') }}</span>
+          </b-button>
+          <b-button v-if="authConfig" variant="outline-primary" size="sm" @click="auth" :title="$t('authentication.button.title')">
+            <template v-if="authData">
+              <b-icon-lock /> <span class="button-label">{{ $t('authentication.button.authenticated') }}</span>
+            </template>
+            <template v-else>
+              <b-icon-unlock /> <span class="button-label">{{ $t('authentication.button.authenticate') }}</span>
+            </template>
           </b-button>
         </b-button-group>
       </p>
@@ -32,8 +42,9 @@
 <script>
 import { mapState, mapGetters } from 'vuex';
 import StacLink from './StacLink.vue';
-import { BIconArrow90degUp, BIconBook, BIconFolderSymlink, BIconSearch } from "bootstrap-vue";
-import STAC from '../stac';
+import { BIconArrow90degUp, BIconBook, BIconFolderSymlink, BIconSearch, BIconLock, BIconUnlock } from "bootstrap-vue";
+import Source from './Source.vue';
+import STAC from '../models/stac';
 import Utils from '../utils';
 
 export default {
@@ -43,12 +54,33 @@ export default {
     BIconBook,
     BIconFolderSymlink,
     BIconSearch,
+    BIconLock,
+    BIconUnlock,
     StacLink,
-    Share: () => import('../components/Share.vue')
+    Source
   },
   computed: {
-    ...mapState(['allowSelectCatalog', 'catalogUrl', 'data', 'url', 'title']),
-    ...mapGetters(['root', 'parentLink', 'collectionLink', 'stacVersion', 'supportsSearch', 'toBrowserPath']),
+    ...mapState(['allowSelectCatalog', 'authConfig', 'authData', 'catalogUrl', 'data', 'url', 'title']),
+    ...mapGetters(['root', 'parentLink', 'collectionLink', 'toBrowserPath']),
+    stacVersion() {
+      return this.data?.stac_version;
+    },
+    collectionLinkTitle() {
+      if (Utils.hasText(this.collectionLink.title)) {
+        return this.$t('goToCollection.descriptionWithTitle', this.collectionLink);
+      }
+      else {
+        return this.$t('goToCollection.description');
+      }
+    },
+    parentLinkTitle() {
+      if (Utils.hasText(this.parentLink.title)) {
+        return this.$t('goToParent.descriptionWithTitle', this.parentLink);
+      }
+      else {
+        return this.$t('goToParent.description');
+      }
+    },
     icon() {
       if (this.data instanceof STAC) {
         let icons = this.data.getIcons();
@@ -59,18 +91,26 @@ export default {
       return null;
     },
     searchBrowserLink() {
-      if (!this.allowSelectCatalog) {
-        return '/search';
+      let rootLink;
+      let dataLink;
+      if (this.root) {
+        rootLink = this.root.getSearchLink();
       }
-      else if (this.supportsSearch && this.root) {
-        return `/search${this.root.getBrowserPath()}`;
+      if (this.data !== this.root && this.data instanceof STAC) {
+        dataLink = this.data.getSearchLink();
       }
-      else if (this.supportsSearch && this.url) {
-        return `/search${this.toBrowserPath(this.url)}`;
+      if (dataLink) {
+        return `/search${this.data.getBrowserPath()}`;
       }
-      else {
-        return null;
+      else if (rootLink) {
+        if (!this.allowSelectCatalog) {
+          return '/search';
+        }
+        else {
+          return `/search${this.root.getBrowserPath()}`;
+        }
       }
+      return null;
     },
     containerLink() {
       // Check two cases where this page is the root...
@@ -95,9 +135,17 @@ export default {
   methods: {
     isSearchPage() {
       return this.$router.currentRoute.name === 'search';
+    },
+    auth() {
+      this.$store.commit('requestAuth', () => this.$store.dispatch("load", {
+        url: this.url,
+        loadApi: true,
+        show: true,
+        force: true
+      }));
     }
   }
-}
+};
 </script>
 
 <style lang="scss" scoped>

@@ -1,65 +1,79 @@
 <template>
-  <div class="search">
-    <div v-if="!root" class="loading text-center">
-      <b-spinner label="Loading..."></b-spinner>
-    </div>
-    <b-alert v-else-if="!supportsSearch" variant="danger" show>Item Search (with 'GET') is not supported by the API.</b-alert>
+  <main class="search d-flex flex-column">
+    <Loading v-if="!parent" stretch />
+    <b-alert v-else-if="!searchLink" variant="danger" show>{{ $t('search.notSupported') }}</b-alert>
     <b-row v-else>
       <b-col class="left">
-        <ItemFilter :stac="root" title="" :value="filters" :sort="canSort" @input="setFilters" />
+        <ItemFilter
+          :stac="parent" title="" :value="filters" v-bind="filterComponentProps"
+          @input="setFilters"
+        />
       </b-col>
       <b-col class="right">
-        <b-alert v-if="loading === null" variant="light" show>Please modify the search criteria.</b-alert>
-        <div v-else-if="loading === true" class="loading text-center">
-          <b-spinner label="Loading..."></b-spinner>
-        </div>
-        <b-alert v-else-if="apiItems.length === 0" variant="info" show>Sorry, no items match the given criteria.</b-alert>
-        <template v-else>
-          <Map :stac="root" :stacLayerData="itemCollection" @mapClicked="mapClicked" />
-          <Items :stac="root" :items="apiItems" :api="true" :allowFilter="false" :selected="selected" :pagination="itemPages" @paginate="paginateItems" />
+        <Loading v-if="loading" fill top />
+        <b-alert v-else-if="!hasItems && !hasFilters" variant="info" show>{{ $t('search.modifyCriteria') }}</b-alert>
+        <b-alert v-else-if="!hasItems" variant="warning" show>{{ $t('search.noItemsFound') }}</b-alert>
+        <template v-if="hasItems">
+          <div id="search-map">
+            <Map :stac="parent" :stacLayerData="itemCollection" scrollWheelZoom popover />
+          </div>
+          <Items
+            :stac="parent" :items="apiItems" :api="true" :allowFilter="false"
+            :pagination="itemPages" @paginate="paginateItems"
+          />
         </template>
       </b-col>
     </b-row>
-  </div>
+  </main>
 </template>
 
 <script>
 import Items from '../components/Items.vue';
-import { mapGetters, mapState } from "vuex";
+import { mapGetters, mapMutations, mapState } from "vuex";
 import Utils from '../utils';
-import { ITEMSEARCH_SORT } from '../api';
+import apiCapabilitiesMixinGenerator from '../components/ApiCapabilitiesMixin';
+import ItemFilter from '../components/ItemFilter.vue';
+import Loading from '../components/Loading.vue';
+import STAC from '../models/stac';
 
-const pageTitle = 'Search';
+const searchId = '__search__';
 
 export default {
   name: "Search",
   components: {
-    ItemFilter: () => import('../components/ItemFilter.vue'),
+    ItemFilter,
     Items,
+    Loading,
     Map: () => import('../components/Map.vue')
   },
-  data() {
-    return {
-      loading: null,
-      filters: {},
-      selected: []
-    };
-  },
+  mixins: [
+    apiCapabilitiesMixinGenerator(false)
+  ],
   props: {
-    loadRoot: {
+    loadParent: {
       type: String,
       default: null
     }
   },
-  created() {
-    if (this.loadRoot && !this.root) {
-      let catalogUrl = this.fromBrowserPath(this.loadRoot);
-      this.$store.commit("config", { catalogUrl });
-    }
+  data() {
+    return {
+      parent: null,
+      filters: {},
+      selectedItem: null
+    };
   },
   computed: {
-    ...mapState(['apiItems', 'apiItemsLink', 'apiItemsPagination', 'apiItemsFilter']),
-    ...mapGetters(["root", "searchLink", 'supportsSearch', 'supportsConformance', 'fromBrowserPath']),
+    ...mapState(['apiItems', 'apiItemsLink', 'apiItemsPagination', 'catalogUrl', 'catalogTitle']),
+    ...mapGetters(['getStac', 'root', 'collectionLink', 'parentLink', 'fromBrowserPath', 'getApiItemsLoading']),
+    pageTitle() {
+      return this.$t('search.title');
+    },
+    loading() {
+      return this.getApiItemsLoading(searchId);
+    },
+    searchLink() {
+      return this.parent instanceof STAC && this.parent.getSearchLink();
+    },
     itemCollection() {
       return {
         type: 'FeatureCollection',
@@ -71,76 +85,96 @@ export default {
       let pages = Object.assign({}, this.apiItemsPagination);
       // If first link is not available, add the items link as first link
       if (!pages.first && this.data && this.apiItemsLink) {
-        pages.first = Utils.addFiltersToLink(this.apiItemsLink, this.apiItemsFilter);
+        pages.first = Utils.addFiltersToLink(this.apiItemsLink, this.filters);
       }
       return pages;
     },
-    canSort() {
-      return this.supportsConformance(ITEMSEARCH_SORT);
+    hasFilters() {
+      return Utils.size(this.filters) > 0;
+    },
+    hasItems() {
+      return this.apiItems.length > 0;
+    },
+    pageDescription() {
+      let title = STAC.getDisplayTitle([this.collectionLink, this.parentLink, this.root], this.catalogTitle);
+      return this.$t('search.metaDescription', {title});
     }
   },
   watch:{
-    supportsSearch: {
+    searchLink: {
       immediate: true,
       handler() {
-        if (this.supportsSearch) {
+        if (this.searchLink) {
           this.showPage();
         }
       }
     }
   },
+  async created() {
+    let url = this.catalogUrl;
+    if (this.loadParent) {
+      url = this.fromBrowserPath(this.loadParent);
+      this.parent = this.getStac(url);
+    }
+    else {
+      this.parent = this.root;
+    }
+    if (!this.parent) {
+      await this.$store.dispatch('load', { url });
+      if (!this.root) {
+        this.$store.commit("config", { catalogUrl: url });
+      }
+      this.parent = this.getStac(url);
+    }
+  },
   methods: {
+    ...mapMutations(['toggleApiItemsLoading']),
     async setFilters(filters, reset = false) {
       this.filters = filters;
       if (reset) {
         this.$store.commit('resetApiItems');
-        this.loading = null;
       }
       else {
         await this.filterItems(filters);
       }
     },
     showPage() {
-      this.$store.commit('showPage', {title: pageTitle});
+      this.$store.commit('showPage', {
+        title: this.pageTitle,
+        description: this.pageDescription
+      });
       this.$store.commit('setApiItemsLink', this.searchLink);
     },
     async paginateItems(link) {
+      this.toggleApiItemsLoading(searchId);
       try {
-        let response = await this.$store.dispatch('loadApiItems', {link, show: true});
+        let response = await this.$store.dispatch('loadApiItems', {link, show: true, filters: this.filters});
         this.handleResponse(response);
       } catch (error) {
-        this.$root.$emit('error', error, 'Sorry, loading the list of STAC Items failed.');
+        this.$root.$emit('error', error, this.$t('errors.loadItems'));
+      } finally {
+        this.toggleApiItemsLoading(searchId);
       }
     },
     async filterItems(filters) {
-      this.loading = true;
+      this.toggleApiItemsLoading(searchId);
       try {
-        let response = await this.$store.dispatch('loadApiItems', { link: this.searchLink, show: true, filters });
+        let response = await this.$store.dispatch('loadApiItems', {link: this.searchLink, show: true, filters});
         this.handleResponse(response);
       } catch(error) {
-        this.$root.$emit('error', error, 'Sorry, loading a filtered list of STAC Items failed.');
+        this.$root.$emit('error', error, this.$t('errors.loadFilteredItems'));
       } finally {
-        this.loading = false;
+        this.toggleApiItemsLoading(searchId);
       }
     },
     handleResponse(response) {
       if (response) {
-        this.$store.commit('showPage', {title: pageTitle, url: response.config.url});
+        this.$store.commit('showPage', {
+          title: this.pageTitle,
+          url: response.config.url,
+          description: this.pageDescription
+        });
       }
-    },
-    mapClicked(event) {
-      if (event.type !== 'Feature') {
-        return;
-      }
-
-      // ToDo: Implement something more useful
-      this.selected = [event.data];
-
-/* Doesn't work right now, scrolls to incorrect blocks?!
-      let selected = document.querySelectorAll('.item-card.border-danger');
-      if (selected.length === 1) {
-        Utils.scrollTo(selected[0]);
-      } */
     }
   }
 };
@@ -158,6 +192,7 @@ export default {
   .right {
     min-width: 300px;
     flex-basis: 60%;
+    position: relative !important;
   }
   .items {
     .card-columns {
